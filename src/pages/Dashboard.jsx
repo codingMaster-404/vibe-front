@@ -16,9 +16,9 @@ import {
 } from 'recharts'
 import { useNavigate } from 'react-router-dom'
 import useUserStore from '../store/useUserStore'
+import useCourseStore from '../store/useCourseStore'
 import api from '../axios'
-
-const CURRENT_USER_ID = 1
+import StudentMyCourseList from '../components/dashboard/StudentMyCourseList'
 
 const formatMinutesToKoreanTime = (minutes) => {
   const totalMinutes = Number(minutes) || 0
@@ -36,12 +36,12 @@ const Dashboard = () => {
   const navigate = useNavigate()
   const {
     user,
+    userId,
     weeklyProgress,
     compareChartData,
     gaugeChartData,
     studyLogs,
     loading,
-    setUserId,
     fetchUser,
     fetchWeeklyProgress,
     fetchStudyLogs,
@@ -49,14 +49,20 @@ const Dashboard = () => {
     deleteStudyLog,
     logout,
   } = useUserStore()
+  const clearSelectedCourse = useCourseStore((s) => s.clearSelectedCourse)
   const [isFocusing, setIsFocusing] = useState(false)
   const [startedAt, setStartedAt] = useState(null)
   const [elapsedSec, setElapsedSec] = useState(0)
+  const [isExiting, setIsExiting] = useState(false)
 
   useEffect(() => {
-    setUserId(CURRENT_USER_ID)
+    clearSelectedCourse()
+  }, [clearSelectedCourse])
+
+  useEffect(() => {
+    if (userId == null) return
     void Promise.all([fetchUser(), fetchWeeklyProgress(), fetchStudyLogs()])
-  }, [setUserId, fetchUser, fetchWeeklyProgress, fetchStudyLogs])
+  }, [userId, fetchUser, fetchWeeklyProgress, fetchStudyLogs])
 
   useEffect(() => {
     if (!isFocusing || !startedAt) return
@@ -124,12 +130,14 @@ const Dashboard = () => {
 
   const handleLogout = async () => {
     if (!window.confirm('로그아웃 하시겠습니까?')) return
+    setIsExiting(true)
+    await new Promise((r) => setTimeout(r, 220))
     await logout()
-    navigate('/login')
+    navigate('/', { replace: true })
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-200 p-8 font-sans">
+    <div className={`min-h-screen bg-[#0f172a] text-slate-200 p-8 font-sans transition-opacity duration-300 ${isExiting ? 'opacity-0' : 'opacity-100'}`}>
       <div className="max-w-6xl mx-auto flex justify-between items-center mb-10">
         <div>
           <h1 className="text-sm font-bold tracking-widest text-slate-500 uppercase mb-2">
@@ -258,6 +266,10 @@ const Dashboard = () => {
             )}
           </div>
         </section>
+      </div>
+
+      <div className="max-w-6xl mx-auto mt-8">
+        <StudentMyCourseList userId={userId} />
       </div>
 
       <section className="max-w-6xl mx-auto mt-8 bg-slate-800/70 p-6 rounded-3xl border border-slate-700 shadow-xl hover:shadow-2xl hover:scale-[1.01] transition">

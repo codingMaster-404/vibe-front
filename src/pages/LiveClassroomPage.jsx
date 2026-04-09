@@ -1,6 +1,14 @@
 import { Mic, Video, MessageSquare, Users } from 'lucide-react'
+import { useEffect } from 'react'
+import useCourseStore from '../store/useCourseStore'
 
 function LiveClassroomPage() {
+  const setSelectedCourse = useCourseStore((s) => s.setSelectedCourse)
+
+  useEffect(() => {
+    setSelectedCourse({ title: '실시간 강의실' })
+  }, [setSelectedCourse])
+
   return (
     <div className="min-h-screen bg-[#0f172a] p-8 text-slate-200">
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-4">

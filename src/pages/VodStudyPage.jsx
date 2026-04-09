@@ -1,10 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Play, Square } from 'lucide-react'
 import useFocusTracker from '../hooks/useFocusTracker'
 import FocusGauge from '../components/FocusGauge'
 import useStudyStore from '../store/useStudyStore'
-
-const CURRENT_USER_ID = 1
+import useCourseStore from '../store/useCourseStore'
+import useUserStore from '../store/useUserStore'
+import api from '../axios'
 
 const formatClock = (seconds) => {
   const h = String(Math.floor(seconds / 3600)).padStart(2, '0')
@@ -14,6 +16,12 @@ const formatClock = (seconds) => {
 }
 
 function VodStudyPage() {
+  const [searchParams] = useSearchParams()
+  const courseIdParam = searchParams.get('courseId')
+  const courseIdNum = courseIdParam != null && courseIdParam !== '' ? Number(courseIdParam) : NaN
+  const validCourseId = Number.isFinite(courseIdNum) ? courseIdNum : null
+
+  const userId = useUserStore((s) => s.userId)
   const {
     videoRef: camRef,
     focusScore,
@@ -33,10 +41,44 @@ function VodStudyPage() {
     setSessionAverageFocusScore,
     stopAndSaveSession,
   } = useStudyStore()
+  const setSelectedCourse = useCourseStore((s) => s.setSelectedCourse)
+  const [courseTitle, setCourseTitle] = useState(null)
 
   useEffect(() => {
-    setUserId(CURRENT_USER_ID)
-  }, [setUserId])
+    const uid = userId != null ? userId : 1
+    setUserId(uid)
+  }, [userId, setUserId])
+
+  useEffect(() => {
+    let cancelled = false
+    if (validCourseId == null) {
+      setCourseTitle(null)
+      setSelectedCourse({ title: 'VOD 강의실 (AI 분석실)' })
+      return
+    }
+    setSelectedCourse({ id: validCourseId, title: '불러오는 중…' })
+    void (async () => {
+      try {
+        const res = await api.get(`/api/courses/${validCourseId}`)
+        if (cancelled) return
+        const c = res.data
+        const title = c?.title ?? '강의'
+        setCourseTitle(title)
+        setSelectedCourse({
+          id: c?.id ?? validCourseId,
+          title,
+          accessCode: c?.accessCode,
+        })
+      } catch {
+        if (cancelled) return
+        setCourseTitle(null)
+        setSelectedCourse({ id: validCourseId, title: '강의 (AI 분석실)' })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [validCourseId, setSelectedCourse])
 
   useEffect(() => {
     if (!isStudying) return
@@ -50,7 +92,9 @@ function VodStudyPage() {
   const handleToggleStudy = async () => {
     if (!isStudying) {
       await startTracking()
-      startSession({ meetingTitle: 'VOD 학습 세션' })
+      startSession({
+        meetingTitle: courseTitle ? `${courseTitle} · AI 분석 세션` : 'VOD 학습 세션',
+      })
       return
     }
 
@@ -68,7 +112,9 @@ function VodStudyPage() {
     <div className="min-h-screen bg-[#0f172a] p-8 text-slate-200">
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-3">
         <section className="rounded-3xl border border-slate-700 bg-slate-800/70 p-6 shadow-xl lg:col-span-2">
-          <h1 className="mb-4 text-2xl font-bold text-white">VOD 학습 페이지</h1>
+          <h1 className="mb-4 text-2xl font-bold text-white">
+            {courseTitle ? `${courseTitle} · AI 분석실` : 'VOD 학습 · AI 분석실'}
+          </h1>
           <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black">
             <video
               controls
